@@ -1,0 +1,35 @@
+﻿apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: flask-app
+  namespace: flask-example-prod  # Changed from staging to prod
+spec:
+  replicas: 3  # Increased replicas for production
+  selector:
+    matchLabels:
+      app: flask-app
+  template:
+    metadata:
+      labels:
+        app: flask-app
+    spec:
+      containers:
+      - name: flask-app
+        image: registry.gitlab.com/aminberge/flask-example:latest
+        ports:
+        - containerPort: 8000
+        env:
+        - name: FLASK_ENV
+          value: "production"  # Changed from staging to production
+        - name: DATABASE_URL
+          valueFrom:
+            secretKeyRef:
+              name: postgres-credentials
+              key: database_url
+        resources:
+          requests:
+            memory: "256Mi"    # Increased from 128Mi
+            cpu: "200m"        # Increased from 100m
+          limits:
+            memory: "512Mi"    # Increased from 256Mi
+            cpu: "400m"        # Increased from 200m

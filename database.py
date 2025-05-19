@@ -21,12 +21,14 @@ def verify(id, pw):
     _conn = sqlite3.connect(user_db_file_location)
     _c = _conn.cursor()
 
-    _c.execute("SELECT pw FROM users WHERE id = '" + id + "';")
-    result = _c.fetchone()[0] == hashlib.sha256(pw.encode()).hexdigest()
-    
-    _conn.close()
-
-    return result
+    try:
+        _c.execute("SELECT pw FROM users WHERE id = ?;", (id,))
+        result = _c.fetchone()
+        if result is None:
+            return False
+        return result[0] == hashlib.sha256(pw.encode()).hexdigest()
+    finally:
+        _conn.close()
 
 def delete_user_from_db(id):
     _conn = sqlite3.connect(user_db_file_location)

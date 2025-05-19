@@ -1,8 +1,10 @@
 import os
 import datetime
 import hashlib
+from dbm import sqlite3
+
 from flask import Flask, session, url_for, redirect, render_template, request, abort, flash
-from database import list_users, verify, delete_user_from_db, add_user
+from database import list_users, verify, delete_user_from_db, add_user, user_db_file_location
 from database import read_note_from_db, write_note_into_db, delete_note_from_db, match_user_id_with_note_id
 from database import image_upload_record, list_images_for_user, match_user_id_with_image_uid, delete_image_from_db
 from werkzeug.utils import secure_filename
@@ -147,10 +149,21 @@ def FUN_delete_image(image_uid):
 @app.route("/login", methods = ["POST"])
 def FUN_login():
     id_submitted = request.form.get("id").upper()
+    if not id_submitted:
+        flash("Please enter a username", "error")
+        return redirect(url_for("FUN_root"))
+    
+    if not request.form.get("pw"):
+        flash("Please enter a password", "error")
+        return redirect(url_for("FUN_root"))
+        
     if (id_submitted in list_users()) and verify(id_submitted, request.form.get("pw")):
         session['current_user'] = id_submitted
+        flash("Successfully logged in!", "success")
+    else:
+        flash("Invalid username or password", "error")
     
-    return(redirect(url_for("FUN_root")))
+    return redirect(url_for("FUN_root"))
 
 @app.route("/logout/")
 def FUN_logout():
@@ -202,3 +215,13 @@ def FUN_add_user():
 
 if __name__ == "__main__":
     app.run(debug=True, host="0.0.0.0")
+def test_db_connection():
+    try:
+        _conn = sqlite3.connect(user_db_file_location)
+        _c = _conn.cursor()
+        _c.execute("SELECT * FROM users LIMIT 1")
+        return True
+    except sqlite3.Error:
+        return False
+    finally:
+        _conn.close()

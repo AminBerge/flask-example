@@ -1,0 +1,69 @@
+﻿image: python:3.9
+
+variables:
+  DOCKER_DRIVER: overlay2
+  DOCKER_TLS_CERTDIR: ""
+  DOCKER_REGISTRY: "registry.gitlab.com"
+  DOCKER_IMAGE: "${DOCKER_REGISTRY}/aminberge/flask-example"
+  KUBERNETES_NAMESPACE_STAGING: "flask-example-staging"
+  KUBERNETES_NAMESPACE_PROD: "flask-example-prod"
+
+stages:
+  - test
+  - build
+  - deploy-staging
+  - deploy-prod
+
+test:
+  stage: test
+  script:
+    - pip install -r requirements.txt
+    - pip install pytest pytest-cov
+    - pytest --cov=./ --cov-report=xml
+  coverage: '/TOTAL.+ ([0-9]{1,3}%)/'
+  artifacts:
+    reports:
+      coverage_report:
+        coverage_format: cobertura
+        path: coverage.xml
+
+services:
+  - docker:dind
+
+build:
+  image: docker:latest
+  stage: build
+  before_script:
+    - docker login -u $CI_REGISTRY_USER -p $CI_REGISTRY_PASSWORD $CI_REGISTRY
+  script:
+    - docker build -t $CI_REGISTRY_IMAGE:$CI_COMMIT_SHA .
+    - docker tag $CI_REGISTRY_IMAGE:$CI_COMMIT_SHA $CI_REGISTRY_IMAGE:latest
+    - docker push $CI_REGISTRY_IMAGE:$CI_COMMIT_SHA
+    - docker push $CI_REGISTRY_IMAGE:latest
+  only:
+    - main
+
+deploy-staging:
+  stage: deploy-staging
+  image: bitnami/kubectl:latest
+  script:
+    - kubectl config use-context gitlab-agent
+    - kubectl -n $KUBERNETES_NAMESPACE_STAGING set image deployment/flask-app flask-app=$DOCKER_IMAGE:$CI_COMMIT_SHA
+    - kubectl -n $KUBERNETES_NAMESPACE_STAGING rollout status deployment/flask-app
+  environment:
+    name: staging
+  only:
+    - main
+
+deploy-prod:
+  stage: deploy-prod
+  image: bitnami/kubectl:latest
+  script:
+    - kubectl config use-context gitlab-agent
+    - kubectl -n $KUBERNETES_NAMESPACE_PROD set image deployment/flask-app flask-app=$DOCKER_IMAGE:$CI_COMMIT_SHA
+    - kubectl -n $KUBERNETES_NAMESPACE_PROD rollout status deployment/flask-app
+  environment:
+    name: production
+  when: manual
+  only:
+    - main

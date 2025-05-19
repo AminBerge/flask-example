@@ -1,0 +1,59 @@
+﻿apiVersion: v1
+kind: Secret
+metadata:
+  name: postgres-credentials
+  namespace: flask-example-prod  # Changed from staging to prod
+type: Opaque
+data:
+  database_url: <base64-encoded-production-connection-string>
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: postgres
+  namespace: flask-example-prod  # Changed from staging to prod
+spec:
+  serviceName: postgres
+  replicas: 1
+  selector:
+    matchLabels:
+      app: postgres
+  template:
+    metadata:
+      labels:
+        app: postgres
+    spec:
+      containers:
+      - name: postgres
+        image: postgres:13
+        env:
+        - name: POSTGRES_DB
+          value: flask_app
+        - name: POSTGRES_USER
+          valueFrom:
+            secretKeyRef:
+              name: postgres-credentials
+              key: username
+        - name: POSTGRES_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: postgres-credentials
+              key: password
+        resources:
+          requests:
+            memory: "512Mi"    # Increased from staging
+            cpu: "200m"        # Increased from staging
+          limits:
+            memory: "1Gi"      # Increased from staging
+            cpu: "500m"        # Increased from staging
+        volumeMounts:
+        - name: postgres-data
+          mountPath: /var/lib/postgresql/data
+  volumeClaimTemplates:
+  - metadata:
+      name: postgres-data
+    spec:
+      accessModes: [ "ReadWriteOnce" ]
+      resources:
+        requests:
+          storage: 5Gi        # Increased from 1Gi for production
